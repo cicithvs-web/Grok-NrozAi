@@ -158,6 +158,7 @@ bot.on("document", async (msg) => {
     const bufferData = Buffer.from(response.data);
     const fileName = msg.document.file_name.toLowerCase();
     let extractedText = "";
+    const prompt = msg.caption || "";
     // [FIX] Ekstrak teks langsung dari Buffer, tidak perlu simpan ke disk (fs)
     const textExtensions = [
   ".txt",
@@ -199,7 +200,72 @@ if (
       const docxData = await mammoth.extractRawText({ buffer: bufferData
 });
       extractedText = docxData.value;
-    } else {
+    } else if (
+  fileName.endsWith(".jpg") ||
+  fileName.endsWith(".jpeg") ||
+  fileName.endsWith(".png") ||
+  fileName.endsWith(".webp")
+) {
+   const mime =
+    fileName.endsWith(".png")
+      ? "image/png"
+      : fileName.endsWith(".webp")
+      ? "image/webp"
+      : "image/jpeg";
+
+  await saveMemory(
+    chatId,
+    "user",
+    [
+      {
+        type: "text",
+        text: prompt || ""
+      },
+      {
+        type: "image_url",
+        image_url: {
+          url:
+            `data:${mime};base64,` +
+            bufferData.toString("base64")
+        }
+      }
+    ]
+  );
+
+  const currentMessage = [
+  {
+    role: "user",
+    content: [
+
+  const result =
+  await client.chat.completions.create({
+    model: process.env.MODEL,
+    ]
+  }
+];
+messages: currentMessage
+  });
+
+  let answer =
+  result.choices[0]
+  .message.content;
+
+  answer = answer
+    .replace(/\*\*/g, "")
+    .replace(/###/g, "")
+    .replace(/__/g, "");
+
+  await saveMemory(
+    chatId,
+    "assistant",
+    answer
+  );
+
+  return bot.sendMessage(
+    chatId,
+    answer
+  );
+  } else {
       return bot.sendMessage(chatId, "Format file belum didukung. Harap kirim TXT, PDF, atau DOCX.");
     }
     const prompt = msg.caption || "";
