@@ -80,11 +80,11 @@ async function getReplyContext(
 }
 function cleanAnswer(text) {
   return text
-    .replace(/\*\*/g, "")
-    .replace(/###/g, "")
-    .replace(/__/g, "")
-    .replace(/```/g, "");
+    .replace(/\*\*/g, "*")    // Ubah **bold** (OpenAI) menjadi *bold* (Telegram Markdown)
+    .replace(/### /g, "")     // Hapus simbol heading ### karena Telegram tidak mendukungnya
+    // Hapus replace untuk "```" agar blok kode tetap menyala dengan rapi
 }
+
 function startTyping(chatId) {
   bot.sendChatAction(chatId, "typing");
   return setInterval(() => {
@@ -186,18 +186,10 @@ await saveMemory(
     });
     let answer = result.choices[0].message.content || "";
     answer = cleanAnswer(answer);
-    const sent =
-await bot.sendMessage(
-  chatId,
-  answer
-);
-
-await saveMemory(
-  chatId,
-  "assistant",
-  answer,
-  sent.message_id
-);
+    
+    const sent = 
+await bot.sendMessage(chatId, answer, { parse_mode: "Markdown" });
+await saveMemory(chatId, "assistant", answer, sent.message_id);
   } catch(err) {
     console.error("TEXT ERROR:", err);
     await bot.sendMessage(chatId, "Terjadi kesalahan.");
@@ -238,19 +230,9 @@ bot.on("photo", async (msg) => {
       await saveMemory(chatId, "user",
       `[Kirim Foto]: ${prompt || "(tanpa caption)"}`);
     }
-    const sent =
-await bot.sendMessage(
-  chatId,
-  answer
-);
-
-await saveMemory(
-  chatId,
-  "assistant",
-  answer,
-  sent.message_id
-);
-
+const sent = 
+  await bot.sendMessage(chatId, answer, { parse_mode: "Markdown" });
+  await saveMemory(chatId, "assistant", answer, sent.message_id);
 return;
   } catch(err) {
     console.error("PHOTO ERROR:", err);
@@ -355,27 +337,12 @@ await client.chat.completions.create({
   messages: currentMessage
 });
 
-  let answer =
-  result.choices[0]
-  .message.content;
+  let answer = result.choices[0].message.content;
+  answer = cleanAnswer(answer); // Gunakan fungsi terpusat
 
-  answer = answer
-    .replace(/\*\*/g, "")
-    .replace(/###/g, "")
-    .replace(/__/g, "");
-
- const sent =
-await bot.sendMessage(
-  chatId,
-  answer
-);
-
-await saveMemory(
-  chatId,
-  "assistant",
-  answer,
-  sent.message_id
-);
+  const sent = 
+    await bot.sendMessage(chatId, answer, { parse_mode: "Markdown" });
+    await saveMemory(chatId, "assistant", answer, sent.message_id);
 return;
   } else {
       return bot.sendMessage(chatId, "Format file belum didukung. Harap kirim TXT, PDF, atau DOCX.");
@@ -388,18 +355,10 @@ return;
     });
     let answer = result.choices[0].message.content;
     answer = cleanAnswer(answer);
-    const sent =
-await bot.sendMessage(
-  chatId,
-  answer
-);
-
-await saveMemory(
-  chatId,
-  "assistant",
-  answer,
-  sent.message_id
-);
+   
+    const sent = 
+      await bot.sendMessage(chatId, answer, { parse_mode: "Markdown" });
+      await saveMemory(chatId, "assistant", answer, sent.message_id);
   } catch(err) {
     console.error("DOCUMENT ERROR:", err);
     await bot.sendMessage(chatId, "Gagal mengekstrak atau memproses dokumen.");
