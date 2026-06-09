@@ -5,6 +5,7 @@ const OpenAI = require("openai");
 const axios = require("axios");
 const pdf = require("pdf-parse");
 const mammoth = require("mammoth");
+const BOT_USERNAME = "NrozBot";
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const client = new OpenAI({
   apiKey: process.env.API_KEY,
@@ -14,17 +15,24 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
-async function saveMemory(chatId, role, content) {
+async function saveMemory(
+  chatId,
+  role,
+  content,
+  telegramMessageId = null
+) {
   const { error } = await supabase
     .from("chat_memory")
     .insert({
-      chat_id: chatId,
-      role,
-      content
-    });
-  if (error) {
+   chat_id: chatId,
+   role,
+   content,
+   telegram_message_id:
+    telegramMessageId 
+   });
+   if (error) {
     throw error;
-  }
+   }
 }
 async function getHistory(chatId) {
   const { data, error } = await supabase
@@ -44,6 +52,31 @@ async function getHistory(chatId) {
       role: row.role,
       content: row.content
     }));
+}
+async function getReplyContext(
+  chatId,
+  messageId
+) {
+
+  const {
+    data,
+    error
+  } = await supabase
+    .from("chat_memory")
+    .select("*")
+    .eq("chat_id", chatId)
+    .eq(
+      "telegram_message_id",
+      messageId
+    )
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+
 }
 function cleanAnswer(text) {
   return text
@@ -82,21 +115,89 @@ bot.onText(/\/newtopic/, async (msg) => {
 });
 // Handler Teks
 bot.on("message", async (msg) => {
-  if (msg.text?.startsWith("/")) return;
+  if (msg.text?.startsWith("/"))
+return;
+
+if (
+  msg.chat.type === "group" ||
+  msg.chat.type === "supergroup"
+) {
+
+  const mention =
+  `@${BOT_USERNAME}`;
+
+  const replied =
+msg.reply_to_message?.from?.username ===
+BOT_USERNAME;
+
+  const mentioned =
+  msg.text?.includes(mention);
+
+  if (
+    !mentioned &&
+    !replied
+  ) {
+    return;
+  }
+
+}
   if (!msg.text) return;
   const chatId = msg.chat.id;
   let typing;
   try {
     typing = startTyping(chatId);
-    await saveMemory(chatId, "user", msg.text);
+    let userText =
+msg.text;
+
+if (
+  msg.reply_to_message
+) {
+
+  const replied =
+  await getReplyContext(
+    chatId,
+    msg.reply_to_message.message_id
+  );
+
+  if (replied) {
+
+    userText =
+`Pesan yang direply:
+
+${replied.content}
+
+Pesan baru:
+
+${msg.text}`;
+
+  }
+
+}
+
+await saveMemory(
+  chatId,
+  "user",
+  userText,
+  msg.message_id
+);
     const result = await client.chat.completions.create({
       model: process.env.MODEL,
       messages: await getHistory(chatId)
     });
     let answer = result.choices[0].message.content || "";
     answer = cleanAnswer(answer);
-    await saveMemory(chatId, "assistant", answer);
-    await bot.sendMessage(chatId, answer);
+    const sent =
+await bot.sendMessage(
+  chatId,
+  answer
+);
+
+await saveMemory(
+  chatId,
+  "assistant",
+  answer,
+  sent.message_id
+);
   } catch(err) {
     console.error("TEXT ERROR:", err);
     await bot.sendMessage(chatId, "Terjadi kesalahan.");
@@ -134,10 +235,23 @@ bot.on("photo", async (msg) => {
     answer = cleanAnswer(answer);
     // Simpan prompt berupa teks saja ke database agar tipe data tetap aman
     if (prompt !== "") {
-      await saveMemory(chatId, "user", `[Kirim Foto]: ${prompt}`);
+      await saveMemory(chatId, "user",
+      `[Kirim Foto]: ${prompt || "(tanpa caption)"}`);
     }
-    await saveMemory(chatId, "assistant", answer);
-    await bot.sendMessage(chatId, answer);
+    const sent =
+await bot.sendMessage(
+  chatId,
+  answer
+);
+
+await saveMemory(
+  chatId,
+  "assistant",
+  answer,
+  sent.message_id
+);
+
+return;
   } catch(err) {
     console.error("PHOTO ERROR:", err);
     await bot.sendMessage(chatId, "Gagal memproses foto.");
@@ -212,6 +326,8 @@ if (
       : fileName.endsWith(".webp")
       ? "image/webp"
       : "image/jpeg";
+      
+      await saveMemory(chatId, "user", `[Kirim Gambar HD]: ${fileName}`);
   
 const currentMessage = [
   {
@@ -248,16 +364,19 @@ await client.chat.completions.create({
     .replace(/###/g, "")
     .replace(/__/g, "");
 
-  await saveMemory(
-    chatId,
-    "assistant",
-    answer
-  );
+ const sent =
+await bot.sendMessage(
+  chatId,
+  answer
+);
 
-  return bot.sendMessage(
-    chatId,
-    answer
-  );
+await saveMemory(
+  chatId,
+  "assistant",
+  answer,
+  sent.message_id
+);
+return;
   } else {
       return bot.sendMessage(chatId, "Format file belum didukung. Harap kirim TXT, PDF, atau DOCX.");
     }
@@ -269,8 +388,18 @@ await client.chat.completions.create({
     });
     let answer = result.choices[0].message.content;
     answer = cleanAnswer(answer);
-    await saveMemory(chatId, "assistant", answer);
-    await bot.sendMessage(chatId, answer);
+    const sent =
+await bot.sendMessage(
+  chatId,
+  answer
+);
+
+await saveMemory(
+  chatId,
+  "assistant",
+  answer,
+  sent.message_id
+);
   } catch(err) {
     console.error("DOCUMENT ERROR:", err);
     await bot.sendMessage(chatId, "Gagal mengekstrak atau memproses dokumen.");
