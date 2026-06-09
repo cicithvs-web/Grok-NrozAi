@@ -159,8 +159,39 @@ bot.on("document", async (msg) => {
     const fileName = msg.document.file_name.toLowerCase();
     let extractedText = "";
     // [FIX] Ekstrak teks langsung dari Buffer, tidak perlu simpan ke disk (fs)
-    if (fileName.endsWith(".txt")) {
-      extractedText = bufferData.toString("utf8");
+    const textExtensions = [
+  ".txt",
+  ".js",
+  ".ts",
+  ".jsx",
+  ".tsx",
+  ".json",
+  ".html",
+  ".css",
+  ".py",
+  ".java",
+  ".c",
+  ".cpp",
+  ".cs",
+  ".php",
+  ".go",
+  ".rs",
+  ".sql",
+  ".xml",
+  ".yaml",
+  ".yml",
+  ".md"
+];
+
+if (
+  textExtensions.some(
+    ext => fileName.endsWith(ext)
+  )
+) {
+
+  extractedText =
+  bufferData.toString("utf8");
+
     } else if (fileName.endsWith(".pdf")) {
       const pdfData = await pdf(bufferData);
       extractedText = pdfData.text;
@@ -173,7 +204,7 @@ bot.on("document", async (msg) => {
     }
     const prompt = msg.caption || "";
     // Gabungkan instruksi dengan teks dokumen
-    await saveMemory(chatId, "user", `${prompt}\n\n${extractedText}`);
+    await saveMemory(chatId, "user", `FILE: ${fileName} ${prompt} ${extractedText}`);
     const result = await client.chat.completions.create({
       model: process.env.MODEL,
       messages: await getHistory(chatId)
