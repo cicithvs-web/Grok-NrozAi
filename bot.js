@@ -212,11 +212,11 @@ if (
       : fileName.endsWith(".webp")
       ? "image/webp"
       : "image/jpeg";
-
-  await saveMemory(
-    chatId,
-    "user",
-    [
+  
+const currentMessage = [
+  {
+    role: "user",
+    content: [
       {
         type: "text",
         text: prompt || ""
@@ -230,21 +230,14 @@ if (
         }
       }
     ]
-  );
-
-  const currentMessage = [
-  {
-    role: "user",
-    content: [
-
-  const result =
-  await client.chat.completions.create({
-    model: process.env.MODEL,
-    ]
   }
 ];
-messages: currentMessage
-  });
+
+const result =
+await client.chat.completions.create({
+  model: process.env.MODEL,
+  messages: currentMessage
+});
 
   let answer =
   result.choices[0]
@@ -268,7 +261,6 @@ messages: currentMessage
   } else {
       return bot.sendMessage(chatId, "Format file belum didukung. Harap kirim TXT, PDF, atau DOCX.");
     }
-    const prompt = msg.caption || "";
     // Gabungkan instruksi dengan teks dokumen
     await saveMemory(chatId, "user", `FILE: ${fileName} ${prompt} ${extractedText}`);
     const result = await client.chat.completions.create({
