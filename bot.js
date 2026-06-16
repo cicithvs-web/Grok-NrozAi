@@ -4,6 +4,7 @@ const OpenAI = require("openai");
 const axios = require("axios");
 const pdf = require("pdf-parse");
 const mammoth = require("mammoth");
+const AdmZip = require("adm-zip"); // <-- Tambahan modul untuk membaca ZIP
 
 // Import semua helper database dari supabaseHelper.js
 const { supabase, saveMemory, getHistory, getReplyContext } = require("./supabaseHelper");
@@ -41,7 +42,7 @@ bot.onText(/\/start/, async (msg) => {
   if (msg.from && msg.from.is_bot) return; // Cegah bot merespons bot
   await bot.sendMessage(
     msg.chat.id,
-    "Nroz AI\n\nsiap membantumu, buat obrolan baru:\nsaya bisa baca teks/foto/jpg/dokumen\ndengan sangat akurat"
+    "Nroz AI\n\nsiap membantumu, buat obrolan baru:\nsaya bisa baca teks/foto/jpg/dokumen/zip\ndengan sangat akurat"
   );
 });
 
@@ -112,7 +113,7 @@ bot.on("message", async (msg) => {
 bot.on("photo", async (msg) => {
   if (msg.from && msg.from.is_bot) return; // [FIX] Mencegah infinite loop bot spam
 
-    // Pengecekan khusus untuk grup
+  // Pengecekan khusus untuk grup
   if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
     const mention = `@${BOT_USERNAME}`;
     const replied = msg.reply_to_message?.from?.username === BOT_USERNAME;
@@ -205,6 +206,30 @@ bot.on("document", async (msg) => {
     } else if (fileName.endsWith(".docx")) {
       const docxData = await mammoth.extractRawText({ buffer: bufferData });
       extractedText = docxData.value;
+    } else if (fileName.endsWith(".zip")) {
+      // --- LOGIKA PEMBACAAN FILE ZIP ---
+      try {
+        const zip = new AdmZip(bufferData);
+        const zipEntries = zip.getEntries();
+        
+        extractedText = `Daftar isi file dalam ${fileName}:\n`;
+        zipEntries.forEach((zipEntry) => {
+          if (!zipEntry.isDirectory) {
+            // Jika filenya bisa dibaca sebagai teks, bot akan mengekstrak isinya
+            if (textExtensions.some(ext => zipEntry.name.toLowerCase().endsWith(ext))) {
+              extractedText += `\n--- Mulai File: ${zipEntry.name} ---\n`;
+              extractedText += zipEntry.getData().toString("utf8");
+              extractedText += `\n--- Akhir File: ${zipEntry.name} ---\n`;
+            } else {
+              // Jika format tidak bisa dibaca teksnya (misal: .exe, .mp4, di dalam zip)
+              extractedText += `\n- [File lain]: ${zipEntry.name} (Hanya nama file, isinya tidak bisa dibaca AI)`;
+            }
+          }
+        });
+      } catch (e) {
+        extractedText = "[Sistem]: Gagal mengekstrak file ZIP karena file rusak, dilindungi password, atau format tidak dikenali.";
+      }
+      // ----------------------------------
     } else if (
       fileName.endsWith(".jpg") ||
       fileName.endsWith(".jpeg") ||
@@ -238,11 +263,11 @@ bot.on("document", async (msg) => {
       await saveMemory(chatId, "assistant", answer, sent.message_id);
       return;
     } else {
-      bot.sendMessage(chatId, "Format file belum didukung. Harap kirim TXT, PDF, atau DOCX.");
+      bot.sendMessage(chatId, "Format file belum didukung. Harap kirim TXT, PDF, DOCX, atau ZIP.");
       return;
     }
 
-    await saveMemory(chatId, "user", `FILE: ${fileName} ${prompt} ${extractedText}`);
+    await saveMemory(chatId, "user", `FILE: ${fileName} ${prompt}\n\n${extractedText}`);
     
     const result = await client.chat.completions.create({
       model: process.env.MODEL,
