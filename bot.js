@@ -41,7 +41,7 @@ bot.onText(/\/start/, async (msg) => {
   if (msg.from && msg.from.is_bot) return; // Cegah bot merespons bot
   await bot.sendMessage(
     msg.chat.id,
-    "Nroz AI\n\nsiap membantumu, buat obrolan baru:\nsaya bisa baca teks/foto/jpg/dokumen\n dengan sangat akurat"
+    "Nroz AI\n\nsiap membantumu, buat obrolan baru:\nsaya bisa baca teks/foto/jpg/dokumen\ndengan sangat akurat"
   );
 });
 
@@ -112,6 +112,15 @@ bot.on("message", async (msg) => {
 bot.on("photo", async (msg) => {
   if (msg.from && msg.from.is_bot) return; // [FIX] Mencegah infinite loop bot spam
 
+    // Pengecekan khusus untuk grup
+  if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+    const mention = `@${BOT_USERNAME}`;
+    const replied = msg.reply_to_message?.from?.username === BOT_USERNAME;
+    const mentioned = msg.caption?.includes(mention); 
+    if (!mentioned && !replied) {
+      return; // Hentikan proses jika bot tidak dipanggil
+    }
+  }
   const chatId = msg.chat.id;
   let typing;
   try {
@@ -160,6 +169,14 @@ bot.on("photo", async (msg) => {
 bot.on("document", async (msg) => {
   if (msg.from && msg.from.is_bot) return; // [FIX] Mencegah infinite loop bot spam
 
+  if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+    const mention = `@${BOT_USERNAME}`;
+    const replied = msg.reply_to_message?.from?.username === BOT_USERNAME;
+    const mentioned = msg.caption?.includes(mention); 
+    if (!mentioned && !replied) {
+      return; // Hentikan proses jika bot tidak dipanggil
+    }
+  }
   const chatId = msg.chat.id;
   let typing;
   try {
