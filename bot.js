@@ -28,7 +28,7 @@ function startTyping(chatId) {
   bot.sendChatAction(chatId, "typing");
   return setInterval(() => {
     bot.sendChatAction(chatId, "typing");
-  }, 4080);
+  }, 4050);
 }
 
 function stopTyping(interval) {
@@ -39,27 +39,26 @@ function stopTyping(interval) {
 
 // Kirim pesan panjang dengan menjaga format Markdown (khususnya Code Block)
 async function sendLongMessage(chatId, text, options = {}) {
-  const LIMIT = 4080; // Sedikit di bawah batas maksimal 4096 agar aman
+  const LIMIT = 4050; // Sedikit di bawah batas maksimal 4096 agar aman
   if (text.length <= LIMIT) {
     return await bot.sendMessage(chatId, text, options);
   }
 
-  const lines = text.split('\n');
+  const lines = text.split("\n");
   const chunks = [];
-  let currentChunk = '';
+  let currentChunk = "";
   let isCodeBlockOpen = false;
-  let currentLanguage = '';
+  let currentLanguage = "";
 
   for (const line of lines) {
     // Cek apakah baris ini membuka atau menutup code block (```)
-    if (line.trim().startsWith('
-```')) {
+    if (line.trim().startsWith("```")) {
       isCodeBlockOpen = !isCodeBlockOpen;
       if (isCodeBlockOpen) {
         // Simpan nama bahasanya (misal: js, python) jika ada
-        currentLanguage = line.trim().replace(/`/g, ''); 
+        currentLanguage = line.trim().replace(/`/g, ""); 
       } else {
-        currentLanguage = '';
+        currentLanguage = "";
       }
     }
 
@@ -67,20 +66,19 @@ async function sendLongMessage(chatId, text, options = {}) {
     if (currentChunk.length + line.length + 1 > LIMIT) {
       if (isCodeBlockOpen) {
         // Tutup sementara code block di pesan ini agar format Telegram tidak error
-        currentChunk += '\n```';
+        currentChunk += "\n```";
       }
       chunks.push(currentChunk);
 
       // Mulai potongan pesan baru
       if (isCodeBlockOpen) {
         // Buka kembali code block di pesan selanjutnya dengan bahasa yang sama
-        currentChunk = '
-```' + currentLanguage + '\n' + line + '\n';
+        currentChunk = "```" + currentLanguage + "\n" + line + "\n";
       } else {
-        currentChunk = line + '\n';
+        currentChunk = line + "\n";
       }
     } else {
-      currentChunk += line + '\n';
+      currentChunk += line + "\n";
     }
   }
 
@@ -92,7 +90,7 @@ async function sendLongMessage(chatId, text, options = {}) {
   let lastSent;
   for (let i = 0; i < chunks.length; i++) {
     // Penanda bersambung yang rapi
-    const suffix = (i !== chunks.length - 1) ? `\n\n_...bersambung ke pesan selanjutnya_` : "";
+    const suffix = (i !== chunks.length - 1) ? "\n\n_...bersambung ke pesan selanjutnya_" : "";
     
     try {
       lastSent = await bot.sendMessage(chatId, chunks[i] + suffix, options);
