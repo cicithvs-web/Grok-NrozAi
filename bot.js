@@ -213,19 +213,42 @@ bot.on("document", async (msg) => {
         const zipEntries = zip.getEntries();
         
         extractedText = `Daftar isi file dalam ${fileName}:\n`;
-        zipEntries.forEach((zipEntry) => {
+        for (const zipEntry of zipEntries) {
           if (!zipEntry.isDirectory) {
-            // Jika filenya bisa dibaca sebagai teks, bot akan mengekstrak isinya
-            if (textExtensions.some(ext => zipEntry.name.toLowerCase().endsWith(ext))) {
+            const entryName = zipEntry.name.toLowerCase();
+            const entryBuffer = zipEntry.getData();
+
+            if (textExtensions.some(ext => entryName.endsWith(ext))) {
+              // File teks biasa (js, py, txt, dll)
               extractedText += `\n--- Mulai File: ${zipEntry.name} ---\n`;
-              extractedText += zipEntry.getData().toString("utf8");
+              extractedText += entryBuffer.toString("utf8");
               extractedText += `\n--- Akhir File: ${zipEntry.name} ---\n`;
+            } else if (entryName.endsWith(".pdf")) {
+              // File PDF di dalam ZIP
+              try {
+                const pdfData = await pdf(entryBuffer);
+                extractedText += `\n--- Mulai File: ${zipEntry.name} ---\n`;
+                extractedText += pdfData.text;
+                extractedText += `\n--- Akhir File: ${zipEntry.name} ---\n`;
+              } catch (e) {
+                extractedText += `\n- [PDF Error]: ${zipEntry.name} (Gagal membaca isi PDF)`;
+              }
+            } else if (entryName.endsWith(".docx")) {
+              // File DOCX di dalam ZIP
+              try {
+                const docxData = await mammoth.extractRawText({ buffer: entryBuffer });
+                extractedText += `\n--- Mulai File: ${zipEntry.name} ---\n`;
+                extractedText += docxData.value;
+                extractedText += `\n--- Akhir File: ${zipEntry.name} ---\n`;
+              } catch (e) {
+                extractedText += `\n- [DOCX Error]: ${zipEntry.name} (Gagal membaca isi DOCX)`;
+              }
             } else {
-              // Jika format tidak bisa dibaca teksnya (misal: .exe, .mp4, di dalam zip)
-              extractedText += `\n- [File lain]: ${zipEntry.name} (Hanya nama file, isinya tidak bisa dibaca AI)`;
+              // Format lain yang tidak bisa dibaca (exe, mp4, dll)
+              extractedText += `\n- [File lain]: ${zipEntry.name} (Format tidak didukung, isinya tidak bisa dibaca AI)`;
             }
           }
-        });
+        }
       } catch (e) {
         extractedText = "[Sistem]: Gagal mengekstrak file ZIP karena file rusak, dilindungi password, atau format tidak dikenali.";
       }
