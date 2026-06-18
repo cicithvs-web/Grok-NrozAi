@@ -402,8 +402,8 @@ bot.on("inline_query", async (query) => {
       {
         type: "article",
         id: "1",
-        title: "Kirim Jawaban", // Wajib ada, tapi teksnya bebas sesukamu
-        // description tidak wajib, jadi bisa dihapus
+        title: "Kirim Jawaban:", // Wajib ada, tapi teksnya bebas sesukamu
+        description: answer.substring(0, 60) + "...", 
         input_message_content: {
           message_text: answer, // Langsung mengirim jawaban murni dari AI
           parse_mode: "Markdown"
