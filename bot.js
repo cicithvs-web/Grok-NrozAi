@@ -380,6 +380,48 @@ bot.on("document", async (msg) => {
   }
 });
 
+// === HANDLER INLINE QUERY ===
+bot.on("inline_query", async (query) => {
+  const queryText = query.query.trim();
+  
+  // Jika user belum mengetik pertanyaan, hentikan proses (jangan buang limit API)
+  if (!queryText) return;
+
+  try {
+    // Panggil AI langsung tanpa membaca history agar responsnya kilat dan tidak timeout
+    const result = await client.chat.completions.create({
+      model: process.env.MODEL,
+      messages: [{ role: "user", content: queryText }]
+    });
+
+    let answer = result.choices[0].message.content || "";
+    answer = cleanAnswer(answer); // Pakai fungsi utility yang sudah ada di kodemu
+
+    // Buat format hasil untuk dimunculkan di pop-up Telegram
+        const results = [
+      {
+        type: "article",
+        id: "1",
+        title: "Kirim Jawaban", // Wajib ada, tapi teksnya bebas sesukamu
+        // description tidak wajib, jadi bisa dihapus
+        input_message_content: {
+          message_text: answer, // Langsung mengirim jawaban murni dari AI
+          parse_mode: "Markdown"
+        }
+      }
+    ];
+
+    // Kirim hasilnya kembali ke Telegram
+    // cache_time: 0 agar Telegram tidak nge-cache jawaban (selalu minta hasil baru)
+    await bot.answerInlineQuery(query.id, results, { cache_time: 0 });
+
+  } catch (err) {
+    console.error("INLINE QUERY ERROR:", err.message);
+    // Kita tidak mengirim pesan error ke user di mode inline agar UI tidak rusak
+  }
+});
+
+
 // === PENANGAN ERROR POLLING (Agar Log Railway Bersih) ===
 bot.on("polling_error", (error) => {
   console.log(`[Polling Error]: ${error.message}`);
