@@ -7,7 +7,7 @@ const mammoth = require("mammoth");
 const AdmZip = require("adm-zip"); // <-- Tambahan modul untuk membaca ZIP
 
 // Import semua helper database dari supabaseHelper.js
-const { supabase, saveMemory, getHistory, getReplyContext } = require("./supabaseHelper");
+const { supabase, saveMemory, getHistory, getReplyContext } = require("./supabaseHelper.js");
 
 const BOT_USERNAME = "NrozBot";
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
