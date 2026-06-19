@@ -19,9 +19,20 @@ const client = new OpenAI({
 
 // === FUNGSI UTILITY ===
 function cleanAnswer(text) {
-  return text
-    .replace(/\*\*/g, "*")    // Ubah **bold** (OpenAI) menjadi *bold* (Telegram Markdown)
-    .replace(/### /g, "");     // Hapus simbol heading ###
+  let html = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  html = html.replace(/```[a-z]*\n([\s\S]*?)```/gi, "<pre><code>$1</code></pre>");
+  html = html.replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>");
+  html = html.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/^### (.*$)/gim, "<b>$1</b>");
+  html = html.replace(/^## (.*$)/gim, "<b>$1</b>");
+  html = html.replace(/^# (.*$)/gim, "<b>$1</b>");
+
+  return html;
 }
 
 function startTyping(chatId) {
@@ -37,43 +48,43 @@ function stopTyping(interval) {
   }
 }
 
-// Kirim pesan panjang dengan menjaga format Markdown (khususnya Code Block)
+// Kirim pesan panjang dengan menjaga format HTML (khususnya Code Block)
 async function sendLongMessage(chatId, text, options = {}) {
   const LIMIT = 4050; // Sedikit di bawah batas maksimal 4096 agar aman
+  
   if (text.length <= LIMIT) {
-    return await bot.sendMessage(chatId, text, options);
+    try {
+      return await bot.sendMessage(chatId, text, options);
+    } catch (err) {
+      console.error("[HTML Error] Pesan pendek gagal, mencoba plain text:", err.message);
+      const plainOptions = { ...options };
+      delete plainOptions.parse_mode; 
+      return await bot.sendMessage(chatId, text, plainOptions);
+    }
   }
 
   const lines = text.split("\n");
   const chunks = [];
   let currentChunk = "";
   let isCodeBlockOpen = false;
-  let currentLanguage = "";
 
   for (const line of lines) {
-    // Cek apakah baris ini membuka atau menutup code block (```)
-    if (line.trim().startsWith("```")) {
-      isCodeBlockOpen = !isCodeBlockOpen;
-      if (isCodeBlockOpen) {
-        // Simpan nama bahasanya (misal: js, python) jika ada
-        currentLanguage = line.trim().replace(/`/g, ""); 
-      } else {
-        currentLanguage = "";
-      }
-    }
+    // Pantau apakah baris ini membuka atau menutup code block HTML
+    if (line.includes("<pre><code>")) isCodeBlockOpen = true;
+    if (line.includes("</code></pre>")) isCodeBlockOpen = false;
 
     // Jika menambah baris ini bikin overlimit, kita potong pesannya
     if (currentChunk.length + line.length + 1 > LIMIT) {
       if (isCodeBlockOpen) {
-        // Tutup sementara code block di pesan ini agar format Telegram tidak error
-        currentChunk += "\n```";
+        // Tutup sementara code block di pesan ini agar format HTML tidak error
+        currentChunk += "\n</code></pre>";
       }
       chunks.push(currentChunk);
 
       // Mulai potongan pesan baru
       if (isCodeBlockOpen) {
-        // Buka kembali code block di pesan selanjutnya dengan bahasa yang sama
-        currentChunk = "```" + currentLanguage + "\n" + line + "\n";
+        // Buka kembali code block di pesan selanjutnya
+        currentChunk = "<pre><code>\n" + line + "\n";
       } else {
         currentChunk = line + "\n";
       }
@@ -89,14 +100,14 @@ async function sendLongMessage(chatId, text, options = {}) {
 
   let lastSent;
   for (let i = 0; i < chunks.length; i++) {
-    // Penanda bersambung yang rapi
-    const suffix = (i !== chunks.length - 1) ? "\n\n_...bersambung ke pesan selanjutnya_" : "";
+    // Penanda bersambung yang rapi dengan format italic HTML
+    const suffix = (i !== chunks.length - 1) ? "\n\n<i>...bersambung ke pesan selanjutnya</i>" : "";
     
     try {
       lastSent = await bot.sendMessage(chatId, chunks[i] + suffix, options);
     } catch (err) {
-      console.error("[Markdown Error] Gagal mengirim potongan pesan:", err.message);
-      // Fallback jika masih ada format markdown lain yang tidak valid
+      console.error("[HTML Error] Gagal mengirim potongan pesan:", err.message);
+      // Fallback jika masih ada format HTML yang tidak valid
       const plainOptions = { ...options };
       delete plainOptions.parse_mode; 
       lastSent = await bot.sendMessage(chatId, chunks[i] + suffix, plainOptions);
@@ -169,7 +180,7 @@ bot.on("message", async (msg) => {
     let answer = result.choices[0].message.content || "";
     answer = cleanAnswer(answer);
     
-    const sent = await sendLongMessage(chatId, answer, { parse_mode: "Markdown" });
+    const sent = await sendLongMessage(chatId, answer, { parse_mode: "HTML" });
     await saveMemory(chatId, "assistant", answer, sent.message_id);
   } catch(err) {
     console.error("TEXT ERROR:", err);
@@ -226,7 +237,7 @@ bot.on("photo", async (msg) => {
       await saveMemory(chatId, "user", `[Kirim Foto]: ${prompt || "(tanpa caption)"}`);
     }
     
-    const sent = await sendLongMessage(chatId, answer, { parse_mode: "Markdown" });
+    const sent = await sendLongMessage(chatId, answer, { parse_mode: "HTML" });
     await saveMemory(chatId, "assistant", answer, sent.message_id);
   } catch(err) {
     console.error("PHOTO ERROR:", err);
@@ -352,7 +363,7 @@ bot.on("document", async (msg) => {
       let answer = result.choices[0].message.content;
       answer = cleanAnswer(answer);
 
-      const sent = await sendLongMessage(chatId, answer, { parse_mode: "Markdown" });
+      const sent = await sendLongMessage(chatId, answer, { parse_mode: "HTML" });
       await saveMemory(chatId, "assistant", answer, sent.message_id);
       return;
     } else {
@@ -370,7 +381,7 @@ bot.on("document", async (msg) => {
     let answer = result.choices[0].message.content;
     answer = cleanAnswer(answer);
    
-    const sent = await sendLongMessage(chatId, answer, { parse_mode: "Markdown" });
+    const sent = await sendLongMessage(chatId, answer, { parse_mode: "HTML" });
     await saveMemory(chatId, "assistant", answer, sent.message_id);
   } catch(err) {
     console.error("DOCUMENT ERROR:", err);
