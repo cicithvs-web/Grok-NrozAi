@@ -161,10 +161,21 @@ bot.on("message", async (msg) => {
 
     await saveMemory(chatId, "user", userText, msg.message_id);
 
-    const result = await client.chat.completions.create({
-      model: process.env.MODEL,
-      messages: await getHistory(chatId)
-    });
+    const response = await axios.post(
+  `${process.env.BASE_URL}/chat/completions`,
+  {
+    model: process.env.MODEL,
+    messages: await getHistory(chatId)
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.API_KEY}`,
+      "Content-Type": "application/json"
+    }
+  }
+);
+
+const result = response.data;
 
     let answer = result.choices[0].message.content || "";
     answer = cleanAnswer(answer);
